@@ -1,0 +1,39 @@
+name: Notify CCM domain change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "README.md"
+      - "index.html"
+
+jobs:
+  notify-ccm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send event to CCM Logic App
+        env:
+          LOGICAPP_URL: ${{ secrets.CCM_LOGICAPP_URL }}
+          DOMAIN_ID: ${{ secrets.CCM_DOMAIN_ID }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          SERVER_URL: ${{ github.server_url }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          payload=$(cat <<EOF
+          {
+            "domainId": "${DOMAIN_ID}",
+            "name": "Git change detected. Domain should be re-tested.",
+            "description": "Repository ${REPO} changed on branch ${REF_NAME} by ${ACTOR}. Commit ${SHA}.",
+            "source": "GitHub",
+            "changeUrl": "${SERVER_URL}/${REPO}/commit/${SHA}",
+            "occurredAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+          )
+
+          curl -sS -X POST "${LOGICAPP_URL}" \
+            -H "Content-Type: application/json" \
+            -d "${payload}"
